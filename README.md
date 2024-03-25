@@ -8,7 +8,7 @@ This is a simple YouTube video downloader app built in Python using custom Tkint
 
 ## Table of Contents
 - [Requirements](#requirements)
-- [Installation]
+- [Installation](#installation)
 
 
 ## Requirements
@@ -18,7 +18,7 @@ To run the script, you need to have the following packages installed:
 - customtkinter
 - pytube
 
-##Installation
+## Installation
 You can install these dependencies using pip:
 
 ```bash
