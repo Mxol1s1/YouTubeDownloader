@@ -1,103 +1,115 @@
+import threading
+import queue
 import customtkinter as ctk
 from pytube import YouTube
 import sys
-import os 
+import os
 
-PATH ="Videos"
+PATH = "Videos"
 
-
-#caution
 def resource_path(relative_path):
-
     try:
-
         base_path = sys._MEIPASS2
-    
     except Exception:
-
         base_path = os.path.abspath(".")
-
     return os.path.join(base_path, relative_path)
 
 
+def download_video_from_youtube(link, frame_ui, completion_callback):
 
-def download_video_from_youtube(self, link):
-
-    def on_progress(streams, chunk, bytes_remaining):
-
-        total_size = streams.filesize
-        bytes_downloaded = total_size - bytes_remaining
-        percentage = (bytes_downloaded / total_size)
-        self.progress_bar.set(percentage)
-        self.update_idletasks()
+ 
+    def on_progress(stream, chunk, remaining_bytes):
+        total_size = stream.filesize
+        bytes_downloaded = total_size - remaining_bytes
+        frame_ui.progress_bar.set(bytes_downloaded / total_size)
+        frame_ui.update_idletasks()
 
     yt = YouTube(link)
     yt.register_on_progress_callback(on_progress)
     video = yt.streams.get_highest_resolution()
-    self.download_button.configure(text="Downloading...")
     video.download(output_path=resource_path(PATH))
+    completion_callback()
 
+class DownloadManager(threading.Thread):
+    def __init__(self, downloader_frame):
+        super().__init__()
+        self.downloader_frame = downloader_frame
+        self.download_queue = queue.Queue()
+        # self.progress_queue = queue.Queue()
+        self.running = True
+        self.completed_downloads = 0
+        self.total_videos =0
 
-#center the ui to the screen
-def center_window(window, width, height):
-    screen_width = window.winfo_screenwidth()
-    screen_height = window.winfo_screenheight()
+    def enqueue_download(self, video_url):
+        self.download_queue.put(video_url)
 
-    x = (screen_width - width) //2
-    y = (screen_height - height) //2
+    def stop(self):
+        self.running = False
 
-    window.geometry(f"{width}x{height}+{x}+{y}")
+    def run(self):
+        while self.running:
+            if not self.download_queue.empty():
+                link = self.download_queue.get()
+                self.downloader_frame.notify_download_complete() #wild card to be modified
+                self.downloader_frame.progress_bar.pack(padx=10, pady=9)
+                self.downloader_frame.update_idletasks()
+                download_video_from_youtube(link, self.downloader_frame,  self.download_completed)
+            else:
+                # Queue is empty, wait for some time before checking again
+                self.downloader_frame.update_download_count_label()
+                self.downloader_frame.update_idletasks()
+                threading.Event().wait(1)
+               
+                
 
+    def download_completed(self):
+        self.completed_downloads += 1
+        self.downloader_frame.notify_download_complete()
 
 class DownloaderFrame(ctk.CTkFrame):
-    def __init__(self, app = None):
+    def __init__(self, app=None):
         super().__init__(app)
 
-        #input box
-        self.input_link = ctk.CTkEntry(self, width=400, placeholder_text= "Paste YouTube  Link Here")
-        self.input_link.pack(padx =10, pady = 30)
+        self.input_link = ctk.CTkEntry(self, width=400, placeholder_text="Paste YouTube Link Here")
+        self.input_link.pack(padx=10, pady=30)
 
-        #Download button
-        self.download_button = ctk.CTkButton(self, text="Download", command=self.prepare_download)
-        self.download_button.pack(padx =10, pady =3)
+        self.download_button = ctk.CTkButton(self, text="Download", command=self.enqueue_download)
+        self.download_button.pack(padx=10, pady=3)
 
-        #Label text box
-        self.download_status_label =ctk.CTkLabel(self, text="")
+        self.download_status_label = ctk.CTkLabel(self, text="")
+        self.download_status_label.pack(padx=10, pady=6)
 
-        #progress bar
         self.progress_bar = ctk.CTkProgressBar(self, width=400)
         self.progress_bar.set(0)
-        self.update_idletasks()
-      
-    
-    def prepare_download(self):
-        self.download_button.configure(text="Processing...")
-        self.download_button.configure(state="disabled")
-        self.update_idletasks()
-        self.download_status_label.pack(padx =10, pady =6)
-        self.progress_bar.pack(padx =10, pady =9)
-        self.start_downlaod()
-  
-    
-    def start_downlaod(self):
+
+        self.download_manager = DownloadManager(self)
+        self.download_manager.start()
+   
+
+
+    def enqueue_download(self):
         video_url = self.input_link.get()
-       
-
         if video_url:
-            download_video_from_youtube(self,video_url)
-        
-        #reset values
-        self.download_button.configure(state="normal")
-        self.download_button.configure(text="Download")
-        self.download_status_label.configure(text =" Video Saved: "+resource_path(PATH))
-        self.input_link.delete(0, "end")
+            self.download_manager.enqueue_download(video_url)
+            self.download_manager.total_videos +=1
+            self.input_link.delete(0, "end")
+            self.update_download_count_label()
+
+    def update_download_count_label(self):
+        queue_size = self.download_manager.download_queue.qsize()
+        self.download_status_label.configure(text=f"Videos in Queue: {queue_size}, Completed: {self.download_manager.completed_downloads}/{self.download_manager.total_videos}")
 
 
+    def notify_download_complete(self):
+        self.update_download_count_label()
 
-if __name__ =="__main__":
+    def on_exit(self):
+        self.download_manager.stop()
+        self.download_manager.join()
+
+if __name__ == "__main__":
     app = ctk.CTk()
     app.title("YouTube Video Downloader")
-    center_window(app, 800, 600)
     downloader = DownloaderFrame(app=app)
-    downloader.pack(fill="both", expand =True)
-    downloader.mainloop()
+    downloader.pack(fill="both", expand=True)
+    app.mainloop()
