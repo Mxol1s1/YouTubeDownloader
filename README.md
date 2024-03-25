@@ -4,7 +4,7 @@
 
 # YouTube Video Downloader App
 
-This is a simple YouTube video downloader app built in Python using custom Tkinter GUI. The application allows users to enter a YouTube video URL into a text input field and download the video by clicking a download button. Once the video is downloaded, its location on the device is provided by the app.
+This is a simple YouTube video downloader app built in Python using custom Tkinter GUI. The application allows users to enter a YouTube video URL into a text input field and download the video by clicking a download button. Once the video is downloaded, its location on the device is provided by the app. If more than one video is being downloaded videos are queued and downloaded in sequence. 
 
 ## Table of Contents
 - [Requirements](#requirements)
